@@ -1,0 +1,11 @@
+# depslib dependency file v1.0
+1582113056 source:d:\мои документы\practiceesp\esp32wificlientserver\winclientftp4esp\main.cpp
+	<winsock2.h>
+	<iostream>
+	<fstream>
+
+1583375880 source:c:\users\nikiforov\esp32wificlientserver\winclientftp4esp\main.cpp
+	<winsock2.h>
+	<iostream>
+	<fstream>
+

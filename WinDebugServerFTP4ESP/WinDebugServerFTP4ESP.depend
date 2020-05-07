@@ -1,0 +1,11 @@
+# depslib dependency file v1.0
+1582112638 source:d:\мои документы\practiceesp\esp32wificlientserver\windebugserverftp4esp\main.cpp
+	<iostream>
+	<winsock2.h>
+	<WS2tcpip.h>
+
+1582774523 source:c:\users\nikiforov\esp32wificlientserver\windebugserverftp4esp\main.cpp
+	<iostream>
+	<winsock2.h>
+	<WS2tcpip.h>
+
