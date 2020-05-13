@@ -3,10 +3,20 @@
 
 Использованная среда: Arduino IDE 1.8.10
 
+Контроллер: ESP32-CAM AI-Thinker
+
+Параметры компилирования и записи для Arduino IDE 1.8.10:
+	-
+	-
+	-
+
 
 ////////////////////////////////////////
 Проект WinClientFTP4ESP
 
 Использованная среда: Code::Blocks 13.12 with MinGW compiller
 
-сомпилятор: MinGW GNU GCC 4.7.1
+Компилятор: MinGW GNU GCC 4.7.1
+
+Платформа: Windows 7 SP1
+

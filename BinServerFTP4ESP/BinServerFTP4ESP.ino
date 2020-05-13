@@ -53,15 +53,17 @@ unsigned char packet[BUFERSIZE+5];
 uint32_t byteiter = 0;
 int WriteSize = 0;
 
+//Порт используемый сервером
 WiFiServer server(12345);//Service Port
 
+//////////////////////////DEFAULT SETUP/////////////////////////////////////
 void setup() {
   //camera setup
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-  Serial.begin(115200);
+  Serial.begin(115200);                 //инициализируем последовательный порт UART для отладочных сообщений
   Serial.setDebugOutput(false);
 
-  camera_config_t config;
+  camera_config_t config;               //структура инициализации библиотеки для работы с камерой
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
   config.pin_d0 = Y2_GPIO_NUM;
@@ -81,46 +83,48 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_JPEG; 
-  config.frame_size = FRAMESIZE_UXGA; //SVGA == 800x600   UXGA == 1600x1200
+  config.pixel_format = PIXFORMAT_JPEG;                                     //формат картинки
+  config.frame_size = FRAMESIZE_UXGA; //SVGA == 800x600   UXGA == 1600x1200 //разрешение картинки
   config.jpeg_quality = 30; //<<--tested~~~~~~~~
   config.fb_count = 2;
 
   //camera init
-  esp_err_t err = esp_camera_init(&config);
+  esp_err_t err = esp_camera_init(&config);       //попытка инициализации библиотеки esp_camera.h
   if (err != ESP_OK) {
     Serial.printf("ERROR: Camera init failed with error 0x%x", err);
     return;
   }
   
   
-  delay(5000);
+  delay(5000);  //задержка для того, чтобы успеть включить монитор COM порта (терминал UART)
 
   // Connect to WiFi network
-  Serial.print("Connecting to ");
+  Serial.print("Connecting to "); //отладка (SSID Wi-Fi)
   Serial.println(ssid);
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password);     //начинаем подключение
 
-  while (WiFi.status() != WL_CONNECTED) {
-  delay(500);
+  while (WiFi.status() != WL_CONNECTED) { //пока подключение не произошло, пытаемся подключиться
+  delay(500);                             //раз в 0.5 секунд
   Serial.print(".");
   }
   Serial.println("");
-  Serial.println("WiFi connected");
+  Serial.println("WiFi connected");     //отладочная информация
 
   // Start the server
-  server.begin();
-  Serial.println("Server started");
+  server.begin();                       //запуск сервера (ожидающего сокета)
+  Serial.println("Server started");     
 
   // Print the IP address
   Serial.print("Use this IP to connect: ");
-  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP());       //IP сервера в локальной сети
 }
 
+
+///////////////////////////////DEFAUL LOOP//////////////////////////////////
 void loop() {
   // Check if a client has connected
-  WiFiClient client = server.available();
+  WiFiClient client = server.available(); //ожидание подключения клиента (блокирование потока программы)
   if (!client) {
     key = 1;
     return;
@@ -135,14 +139,15 @@ void loop() {
   Serial.println("Client available");
 
   if(key){
-    fb = esp_camera_fb_get(); //делаем фото и сохраняем в буфер
+    fb = esp_camera_fb_get(); //делаем фото и сохраняем ее хандлер в памяти
     delay(5000);
 
-    //formatting
+    //проверяем корректность полученного хандлера
     if (!fb){
     Serial.println("ERROR: Camera capture failed");
     } else {
       if(fb->width > 400){
+        //Производим форматирование в JPG если этого не произошло автоматически (Обычно (штатно) не выполняется)
         if(fb->format != PIXFORMAT_JPEG){    //если формат картинки  не соответствует jpeg 
           bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len); //преобразуем файл картики в формат jpeg и сохраняем код картинки в _jpg_buf и ее размер в _jpg_buf_len
           esp_camera_fb_return(fb);           //???
@@ -153,48 +158,52 @@ void loop() {
           Serial.println("Parameters:");
           Serial.println("Standard = coverted jpeg");
           Serial.print("Buf_len = "); Serial.println(_jpg_buf_len);
-        } else {
+        } else {                                                      //Если формат соответствует JPG (Обычно (штатно) всегда выполняется)
           _jpg_buf_len = fb->len;
           _jpg_buf = fb->buf;
-          Serial.println("Parameters:");
+          Serial.println("Parameters:");                    //отладочная информация
           Serial.println("Standard = NO converted jpeg");
           Serial.print("Buf_len = "); Serial.println(_jpg_buf_len);
-        }
+        } //end else if(fb->format != PIXFORMAT_JPEG)
       }  
-    }
+    } //end else if (!fb)
+
     Serial.println("Sending is started");
 
     
-    //sending____________________________________
-  offset0 = 0;
-  //beforeEOF = uint32_t(_jpg_buf_len);
+    //////////////////////////////ОТПРАВКА ДАННЫХ КЛИЕНТу НА ПК//////////////////
+    offset0 = 0;          //смещение по страницам файла фото в памяти контроллера
+                          //(зависит от размера буфера передачи)
+
     while(true){
-      bufer = client.readString();
+      bufer = client.readString();    //получаем команду от клиента (?1_без блокировки потока программы?)
 
       Serial.print("OPTIMIZATION >>>>> POINT 1 Time: "); //<<<< OPTIM
       Serial.println(millis());                          //<<<< OPTIM
-      bufer.toCharArray((char*)chbufer, 100);
+      bufer.toCharArray((char*)chbufer, 100); //преобразуем в строку 
       Serial.print("OPTIMIZATION >>>>> POINT 2 Time: "); //<<<< OPTIM
       Serial.println(millis());                          //<<<< OPTIM
       Serial.println((char*)chbufer);
-      
-      
-      //проверить на готовность принять данные
+        
+      //проверка (если клиент готов принять пакет данных)
       if(!strcmp((char*)chbufer, "[FTP_DATA]-RTR-[ED]")){
         Serial.print("OPTIMIZATION >>>>> POINT 3 Time: "); //<<<< OPTIM
         Serial.println(millis());                          //<<<< OPTIM
+        
         Serial.println("[JPEG] RTR detect data sending begin.   ");
+        
         //если смещение стало больше чем размер файла, отправить команду завершения пересылки
-        if(offset0 > _jpg_buf_len/*beforeEOF*/){
+        if(offset0 > _jpg_buf_len){
           Serial.println("[JPEG] Data sending ended");
           client.print("[FTP_DATA]-EOF-[ED]");
           client.print("[FTP_DATA]-EOP-[ED]");
           break;
         }
+        
         Serial.print("OPTIMIZATION >>>>> POINT 4 Time: "); //<<<< OPTIM
         Serial.println(millis());                          //<<<< OPTIM
         
-        //отправить данные побайтово <<<<<<<<<<<
+        ///////ОТПРАВКА ПАКЕТА (побайтово)///////////////
         for(byteiter = 0; byteiter < BUFERSIZE; ++byteiter){
           WriteSize += client.write((byte)_jpg_buf[byteiter+offset0]);
           
@@ -203,35 +212,31 @@ void loop() {
             break;
           }
         }
+        ///////КОНЕЦ ОТПРАВКИ ПАКЕТА//////////////////////
         
         Serial.print("OPTIMIZATION >>>>> POINT 5 Time: "); //<<<< OPTIM
         Serial.println(millis());                          //<<<< OPTIM
-        
+          
         //завершить отправку пакета отправкой флага <<<
         client.print("[FTP_DATA]-EOP-[ED]");
 
-        Serial.print("Sended: ");
+        Serial.print("Sended: ");       //отладочная информация
         Serial.print(WriteSize,DEC);
         Serial.println(" byte");
-        
-        //сместить указатель на размер пакета
+          
+        //сместить указатель (смещение) на размер пакета (для передачи следующего пакета)
         offset0 += BUFERSIZE;
-        //beforeEOF -= BUFERSIZE;
-      }else{
-        Serial.println("[ERROR] Data resend");
-        //client.print("[FTP_DATA]-EOP-[ED]");
-        //client.print((char*)packet);
-      }
-      
-      //если смещение стало больше чем размер файла, отправить команду завершения пересылки
-      
-      
-    }
+
+      }else{ //end if(!strcmp((char*)chbufer, "[FTP_DATA]-RTR-[ED]"))
+        Serial.println("[ERROR] Data resend");  //если клиент отправил что-то кроме [FTP_DATA]-RTR-[ED] (?1_или не отправил ни чего?)
+
+      } //end else if(!strcmp((char*)chbufer, "[FTP_DATA]-RTR-[ED]"))
+    } //end while(true)
     
     
-    esp_camera_fb_return(fb);
+    esp_camera_fb_return(fb); //
     fb = NULL;
-    free(_jpg_buf);
+    free(_jpg_buf);           //освобождение буфера с файлом фото
     _jpg_buf = NULL;
 
     Serial.println("Sending is ended");
@@ -254,3 +259,20 @@ if (reseive == "C") {
 
 delay(1);
 }
+
+
+/*
+"[FTP_DATA]-RTR-[ED]" == клиент готов принять новый пакет данных
+"[FTP_DATA]-EOF-[ED]" == сервер сообщает о конце передачи файла фото
+"[FTP_DATA]-EOP-[ED]" == сервер сообщает о конце пеердачи пакета
+
+?1_ При долгой обработке пакета локальной сетью (клиентом)
+  (переодическое зависание в процессе приема данных)
+  отправляется отладочное сообщение "[ERROR] Data resend"
+
+Задачи:
+  - Организовать инкапсуляцию для различных задач (проработать читабельность кода)
+  - Решить вопрос ?1_
+  - Добавить или убрать обработку повторной отправки пакета в случае ошибки
+
+*/
